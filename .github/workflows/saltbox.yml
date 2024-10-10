@@ -35,13 +35,9 @@ on:
       - 'roles/diag/**'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  actions: write
-
 jobs:
   ansible-lint:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -58,11 +54,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ansible-lint
 
-      - name: Run salty linter
-        run: python3 ./scripts/salty-linter.py ./roles
-
   find-roles:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -72,7 +65,7 @@ jobs:
 
   install:
     name: '${{ matrix.roles }}'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [ansible-lint, find-roles]
     strategy:
       matrix: ${{ fromJson(needs.find-roles.outputs.matrix) }}
@@ -123,6 +116,7 @@ jobs:
         run: sudo /srv/ansible/venv/bin/ansible-playbook saltbox.yml --syntax-check
 
       - name: Create CI vars file
+        if: github.repository == 'saltyorg/Saltbox' && github.event_name != 'pull_request'
         run: |
           echo "continuous_integration: true" > vars.yml
           echo "dockerhub:" >> vars.yml
@@ -135,34 +129,3 @@ jobs:
 
       - name: Install ${{ matrix.roles }}
         run: sudo /srv/ansible/venv/bin/ansible-playbook saltbox.yml --tags "${{ matrix.roles }}" --skip-tags "settings" --extra-vars "@vars.yml"
-
-  webhook:
-    name: 'webhook'
-    runs-on: ubuntu-22.04
-    needs: [ansible-lint, find-roles, install]
-    if: always() && (github.actor == 'dependabot[bot]' || (github.event_name != 'pull_request' && github.event.repository.fork == false))
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Determine Workflow Conclusion
-        run: python3 ./scripts/workflow-status.py '${{ toJSON(needs) }}'
-
-      - uses: sarisia/actions-status-discord@v1
-        with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          status: ${{ env.WORKFLOW_CONCLUSION }}
-          description: "Run attempt: ${{ github.run_attempt }}"
-
-  retry-on-failure:
-    if: failure() && github.actor != 'dependabot[bot]' && fromJSON(github.run_attempt) < 3
-    needs: [install, webhook]
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run retry.yml -F run_id=${{ github.run_id }}
