@@ -24,6 +24,7 @@
       fixed-cidr-v6: "{{ '2001:db8::/64'
                       if docker_ipv6
                       else omit }}"
+      iptables: true
       ip6tables: "{{ true
                   if docker_ipv6
                   else false }}"
@@ -55,7 +56,7 @@
   ansible.builtin.file:
     path: /etc/systemd/system/docker.service.d
     state: directory
-    mode: "0644"
+    mode: "0755"
 
 - name: "Daemon | Import override file"
   ansible.builtin.template:

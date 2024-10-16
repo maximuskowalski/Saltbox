@@ -30,15 +30,21 @@
 
 - name: Fetch Nvidia card info
   ansible.builtin.shell: |
-      if [ `lspci | grep -c -E '.*VGA.*NVIDIA'` -eq 1 ]; then
-        lspci -s $(lspci | grep -E '.*VGA.*NVIDIA' | cut -d' ' -f 1)
-      else
-        echo ""
-      fi
+    if [ `lspci | grep -c -E '.*VGA.*NVIDIA|.*3D controller.*NVIDIA'` -eq 1 ]; then
+      lspci -s $(lspci | grep -E '.*VGA.*NVIDIA|.*3D controller.*NVIDIA' | cut -d' ' -f 1)
+    else
+      echo ""
+    fi
   register: lspci_resp
+  changed_when: false
+
+- name: Fail if no GPU was detected
+  ansible.builtin.fail:
+    msg: "No Nvidia GPU could be detected."
+  when: not ('NVIDIA' in lspci_resp.stdout)
 
 - name: Nvidia Setup block
-  when: (ansible_distribution == 'Ubuntu') and ('NVIDIA' in lspci_resp.stdout)
+  when: ('NVIDIA' in lspci_resp.stdout)
   block:
     - name: Fetch NVIDIA driver patch script
       ansible.builtin.uri:
@@ -76,8 +82,16 @@
                                           if nvidia_smi_output.rc == 0
                                           else '' }}"
 
+    - name: Print driver state
+      ansible.builtin.debug:
+        msg:
+          - "Desired driver version: {{ nvidia_driver_version }}"
+          - "Current driver version: {{ nvidia_installed_driver_version
+                                     if (nvidia_installed_driver_version | length > 0)
+                                     else 'not installed' }}"
+
     - name: Nvidia Purge Drivers Tasks
-      when: (nvidia_installed_driver_version != nvidia_driver_version) and (nvidia_installed_driver_version | length > 0) and ('nvidia' in ansible_run_tags) and (nvidia_driver_version | lower != 'ignore')
+      when: ('nvidia-purge' in ansible_run_tags) or ((nvidia_installed_driver_version != nvidia_driver_version) and (nvidia_installed_driver_version | length > 0) and ('nvidia' in ansible_run_tags) and (nvidia_driver_version | lower != 'ignore'))
       block:
         - name: Purge Nvidia APT packages
           ansible.builtin.shell: "dpkg --force-depends -P $(dpkg -l | grep nvidia | awk '{print $2}')"
