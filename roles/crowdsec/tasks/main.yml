@@ -33,6 +33,21 @@
     mode: "0644"
     update_cache: true
 
+- name: Add CrowdSec APT pinning override for Ubuntu ESM
+  ansible.builtin.copy:
+    dest: "/etc/apt/preferences.d/crowdsec"
+    mode: "0644"
+    content: |
+      Package: *
+      Pin: release o=packagecloud.io/crowdsec/crowdsec,a=any,n=any,c=main
+      Pin-Priority: 1001
+  register: crowdsec_esm_override_result
+
+- name: Update APT cache after CrowdSec ESM override change
+  ansible.builtin.apt:
+    update_cache: true
+  when: crowdsec_esm_override_result is changed
+
 - name: Gather package facts
   ansible.builtin.package_facts:
 
