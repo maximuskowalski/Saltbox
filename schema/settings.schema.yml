@@ -36,7 +36,9 @@ rclone:
       required: true
     remotes:
       type: array
-      required: true
+      required: false
+      required_when_true: ["enabled"]
+      validate_when_true: ["enabled"]
       items:
         type: object
         properties:
