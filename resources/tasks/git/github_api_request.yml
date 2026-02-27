@@ -35,7 +35,7 @@
 - name: Resources | Tasks | Git | GitHub API Request | Set response source
   ansible.builtin.set_fact:
     _github_api_use_proxy_response: "{{ (_github_api_proxy_response.status | default(0) == 200) and
-                                      ((_github_api_proxy_response.content | default('') | trim | length) > 0) }}"
+                                        ((_github_api_proxy_response.content | default('') | trim | length) > 0) }}"
   changed_when: false
 
 - name: Resources | Tasks | Git | GitHub API Request | Query API directly (fallback)
