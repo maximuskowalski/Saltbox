@@ -24,10 +24,11 @@
   args:
     executable: /bin/bash
   register: docker_dns_download_url
+  ignore_errors: true
 
 - name: "DNS | Download sdhm"
   ansible.builtin.get_url:
-    url: "{{ docker_dns_download_url.stdout }}"
+    url: "{{ docker_dns_download_url.stdout | default(docker_dns_download_url_fallback, true) }}"
     dest: "{{ docker_dns_binary_path }}"
     owner: "root"
     group: "root"

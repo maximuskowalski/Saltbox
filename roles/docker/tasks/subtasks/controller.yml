@@ -17,10 +17,11 @@
   args:
     executable: /bin/bash
   register: docker_controller_download_url
+  ignore_errors: true
 
 - name: Controller | Download sdc
   ansible.builtin.get_url:
-    url: "{{ docker_controller_download_url.stdout }}"
+    url: "{{ docker_controller_download_url.stdout | default(docker_controller_download_url_fallback, true) }}"
     dest: "{{ docker_controller_binary_path }}"
     owner: "root"
     group: "root"
