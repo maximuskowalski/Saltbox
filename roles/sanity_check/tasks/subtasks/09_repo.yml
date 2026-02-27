@@ -18,7 +18,7 @@
 - name: Repository | Check Git Origin Hash
   ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
   vars:
-    github_api_url: "https://api.github.com/repos/saltyorg/Saltbox/commits?sha={{ git_branch.stdout }}&per_page=1"
+    github_api_url: "https://api.github.com/repos/saltyorg/Saltbox/commits?sha={{ git_branch.stdout }}"
     github_api_result_var: git_origin_commits_api
     github_api_timeout: 3
     github_api_headers:
@@ -29,8 +29,10 @@
   ansible.builtin.set_fact:
     git_origin_version:
       stdout: "{{ (git_origin_commits_api.content | from_json
+                  | selectattr('sha', 'defined')
                   | map(attribute='sha')
-                  | join('')) }}"
+                  | first
+                  | default('')) }}"
   changed_when: false
 
 - name: Repository | Print Git Hash
