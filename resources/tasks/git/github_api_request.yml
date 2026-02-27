@@ -1,0 +1,73 @@
+#########################################################################
+# Title:         Saltbox: Resources | Tasks | Git | GitHub API Request  #
+# Author(s):     salty                                                   #
+# URL:           https://github.com/saltyorg/Saltbox                    #
+# --                                                                    #
+#########################################################################
+#                   GNU General Public License v3.0                     #
+#########################################################################
+---
+- name: Resources | Tasks | Git | GitHub API Request | Validate required variables
+  ansible.builtin.assert:
+    that:
+      - github_api_url is defined
+      - github_api_url is match('^https://api\\.github\\.com/')
+    fail_msg: "github_api_url must be a direct GitHub API URL, e.g. https://api.github.com/repos/<owner>/<repo>/releases/latest."
+
+- name: Resources | Tasks | Git | GitHub API Request | Set helper variables
+  ansible.builtin.set_fact:
+    _github_api_result_var: "{{ github_api_result_var
+                             if (github_api_result_var is defined)
+                             else 'github_api_response' }}"
+  changed_when: false
+
+- name: Resources | Tasks | Git | GitHub API Request | Query API using svm proxy
+  ansible.builtin.uri:
+    url: "{{ svm }}{{ github_api_url }}"
+    method: GET
+    return_content: true
+    headers: "{{ github_api_headers | default(omit) }}"
+    timeout: "{{ github_api_timeout | default(30) }}"
+  register: _github_api_proxy_response
+  changed_when: false
+  failed_when: false
+
+- name: Resources | Tasks | Git | GitHub API Request | Set response source
+  ansible.builtin.set_fact:
+    _github_api_use_proxy_response: "{{ (_github_api_proxy_response.status | default(0) == 200) and
+                                      ((_github_api_proxy_response.content | default('') | trim | length) > 0) }}"
+  changed_when: false
+
+- name: Resources | Tasks | Git | GitHub API Request | Query API directly (fallback)
+  ansible.builtin.uri:
+    url: "{{ github_api_url }}"
+    method: GET
+    return_content: true
+    headers: "{{ github_api_headers | default(omit) }}"
+    timeout: "{{ github_api_timeout | default(30) }}"
+  register: _github_api_direct_response
+  changed_when: false
+  failed_when: false
+  when: (not _github_api_use_proxy_response)
+
+- name: Resources | Tasks | Git | GitHub API Request | Fail if both API requests failed
+  ansible.builtin.fail:
+    msg: "Unable to fetch GitHub API URL '{{ github_api_url }}' using svm proxy and direct fallback."
+  when: (github_api_fail_on_error | default(true) | bool) and
+        (not _github_api_use_proxy_response) and
+        ((_github_api_direct_response.status | default(0) != 200) or
+         ((_github_api_direct_response.content | default('') | trim | length) == 0))
+
+- name: Resources | Tasks | Git | GitHub API Request | Save API response
+  ansible.builtin.set_fact:
+    "{{ _github_api_result_var }}":
+      source: "{{ 'svm'
+               if _github_api_use_proxy_response
+               else 'github' }}"
+      status: "{{ _github_api_proxy_response.status
+               if _github_api_use_proxy_response
+               else _github_api_direct_response.status }}"
+      content: "{{ _github_api_proxy_response.content
+                if _github_api_use_proxy_response
+                else _github_api_direct_response.content }}"
+  changed_when: false
