@@ -8,11 +8,18 @@
 #########################################################################
 ---
 - name: "btop | Get URL for latest btop release"
-  ansible.builtin.shell: "{{ btop_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: btop_download_url
-  ignore_errors: true
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ btop_releases_url }}"
+    github_api_result_var: btop_release_api
+
+- name: "btop | Resolve btop download URL"
+  ansible.builtin.set_fact:
+    btop_download_url: "{{ ((btop_release_api.content | from_json).assets
+                           | selectattr('name', 'search', 'btop-x86_64-(unknown-)?linux-musl.tbz')
+                           | map(attribute='browser_download_url')
+                           | first) }}"
+  changed_when: false
 
 - name: "btop | Create directories"
   ansible.builtin.file:
@@ -24,7 +31,7 @@
 
 - name: "btop | Download btop"
   ansible.builtin.get_url:
-    url: "{{ btop_version_lock_url if btop_version_lock else btop_download_url.stdout }}"
+    url: "{{ btop_version_lock_url if btop_version_lock else btop_download_url }}"
     dest: "/tmp/btop"
     owner: "{{ user.name }}"
     group: "{{ user.name }}"

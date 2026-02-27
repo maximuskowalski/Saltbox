@@ -47,16 +47,23 @@
 - name: Create directories
   ansible.builtin.include_tasks: "{{ resources_tasks_path }}/directories/create_directories.yml"
 
+- name: "Get latest Autoplow release metadata"
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ autoplow_latest_releases_url }}"
+    github_api_result_var: autoplow_latest_release_api
+
 - name: "Get URL for latest Autoplow release"
-  ansible.builtin.shell: "{{ autoplow_latest_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: autoplow_latest_download_url
+  ansible.builtin.set_fact:
+    autoplow_latest_download_url: "{{ ((autoplow_latest_release_api.content | from_json).assets
+                                    | selectattr('name', 'search', 'linux.*amd64')
+                                    | map(attribute='browser_download_url')
+                                    | first) }}"
   changed_when: false
 
 - name: "Download Autoplow binary"
   ansible.builtin.get_url:
-    url: "{{ autoplow_latest_download_url.stdout }}"
+    url: "{{ autoplow_latest_download_url }}"
     dest: "{{ autoplow_binary_path }}"
     owner: "{{ user.name }}"
     group: "{{ user.name }}"

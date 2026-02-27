@@ -40,11 +40,19 @@
   when: (not rclone_version_is_specified) or (rclone.version in ['latest', 'current'])
 
 - name: "Get URL for latest rclone release"
-  ansible.builtin.shell: "{{ rclone_latest_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: rclone_latest_download_url
-  ignore_errors: true
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ rclone_latest_releases_url }}"
+    github_api_result_var: rclone_latest_release_api
+  when: (not rclone_version_is_specified) or (rclone.version in ['latest', 'current'])
+
+- name: "Resolve URL for latest rclone release"
+  ansible.builtin.set_fact:
+    rclone_latest_download_url: "{{ ((rclone_latest_release_api.content | from_json).assets
+                                  | selectattr('name', 'search', 'linux-amd64.zip')
+                                  | map(attribute='browser_download_url')
+                                  | first) }}"
+  changed_when: false
   when: (not rclone_version_is_specified) or (rclone.version in ['latest', 'current'])
 
 - name: Build URL | Set vars for beta version
@@ -66,12 +74,20 @@
           else (rclone.version | regex_replace('(^v\\.|^v)', '')) }}
 
     - name: Build URL | Check if specified version is available
-      ansible.builtin.shell: |
-        curl -sL {{ svm }}https://api.github.com/repos/ncw/rclone/git/refs/tags \
-        | jq -r  '.[] | .ref' | sed 's/\/\?refs\/tags\/v//g' \
-        | grep '{{ rclone_version_specified0 }}'
-      register: rclone_version_specified0_check
-      failed_when: (rclone_version_specified0_check.rc > 1)
+      ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+      vars:
+        github_api_url: "https://api.github.com/repos/ncw/rclone/git/refs/tags"
+        github_api_result_var: rclone_tags_api
+
+    - name: Build URL | Resolve specified version availability
+      ansible.builtin.set_fact:
+        rclone_version_specified0_check:
+          stdout: "{{ ((rclone_tags_api.content | from_json)
+                      | map(attribute='ref')
+                      | map('regex_replace', '^refs/tags/v', '')
+                      | select('equalto', rclone_version_specified0)
+                      | join('')) }}"
+      changed_when: false
 
     - name: Build URL | Set vars for specified version if available
       ansible.builtin.set_fact:

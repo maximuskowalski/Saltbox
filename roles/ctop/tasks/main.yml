@@ -8,15 +8,22 @@
 #########################################################################
 ---
 - name: Get latest ctop URL
-  ansible.builtin.shell: "{{ ctop_download_url_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: ctop_download_url_lookup
-  ignore_errors: true
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ ctop_releases_url }}"
+    github_api_result_var: ctop_release_api
+
+- name: Resolve ctop download URL
+  ansible.builtin.set_fact:
+    ctop_download_url_lookup: "{{ ((ctop_release_api.content | from_json).assets
+                                  | selectattr('name', 'search', 'linux-amd64')
+                                  | map(attribute='browser_download_url')
+                                  | first) }}"
+  changed_when: false
 
 - name: Install ctop
   ansible.builtin.get_url:
-    url: "{{ ctop_download_url_lookup.stdout | default(ctop_download_url_backup, true) }}"
+    url: "{{ ctop_download_url_lookup }}"
     dest: "{{ ctop_binary_path }}"
     mode: "0775"
     owner: root

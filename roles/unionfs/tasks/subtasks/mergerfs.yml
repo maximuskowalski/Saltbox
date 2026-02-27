@@ -19,11 +19,18 @@
   when: saltbox_managed_mergerfs_status.stat.exists
 
 - name: "MergerFS | Get URL for latest mergerfs release"
-  ansible.builtin.shell: "{{ mergerfs_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: mergerfs_download_url
-  ignore_errors: true
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ mergerfs_releases_url }}"
+    github_api_result_var: mergerfs_release_api
+
+- name: "MergerFS | Resolve mergerfs download URL"
+  ansible.builtin.set_fact:
+    mergerfs_download_url: "{{ ((mergerfs_release_api.content | from_json).assets
+                               | selectattr('name', 'search', (ansible_facts['distribution'] | lower) ~ '-' ~ mergerfs_release_distribution ~ '_amd64')
+                               | map(attribute='browser_download_url')
+                               | first) }}"
+  changed_when: false
 
 - name: "MergerFS | Uninstall mergerfs"
   ansible.builtin.apt:
@@ -32,7 +39,7 @@
 
 - name: "MergerFS | Install mergerfs"
   ansible.builtin.apt:
-    deb: "{{ mergerfs_download_url.stdout | default(mergerfs_download_backup_url, true) }}"
+    deb: "{{ mergerfs_download_url }}"
     state: present
   register: mergerfs_install_result
   until: "mergerfs_install_result is not failed"

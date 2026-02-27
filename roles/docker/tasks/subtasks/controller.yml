@@ -12,16 +12,23 @@
     path: "{{ docker_controller_venv_path }}"
     state: absent
 
-- name: Controller | Get URL for latest sdc release
-  ansible.builtin.shell: "{{ docker_controller_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: docker_controller_download_url
-  ignore_errors: true
+- name: Controller | Get latest sdc release metadata
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ docker_controller_releases_url }}"
+    github_api_result_var: docker_controller_release_api
+
+- name: Controller | Resolve sdc download URL
+  ansible.builtin.set_fact:
+    docker_controller_download_url: "{{ ((docker_controller_release_api.content | from_json).assets
+                                        | selectattr('name', 'equalto', 'sdc_linux_amd64')
+                                        | map(attribute='browser_download_url')
+                                        | first) }}"
+  changed_when: false
 
 - name: Controller | Download sdc
   ansible.builtin.get_url:
-    url: "{{ docker_controller_download_url.stdout | default(docker_controller_download_url_fallback, true) }}"
+    url: "{{ docker_controller_download_url }}"
     dest: "{{ docker_controller_binary_path }}"
     owner: "root"
     group: "root"

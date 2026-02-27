@@ -38,10 +38,7 @@ autoplow_role_web_port: "{{ autoplow_port_lookup.meta.port }}"
 # GitHub
 ################################
 
-autoplow_latest_releases_url: "{{ svm }}https://api.github.com/repos/saltyorg/autoplow/releases/latest"
-autoplow_latest_release_lookup_command: |
-  curl -s {{ autoplow_latest_releases_url }} \
-    | jq -r ".assets[] | select(.name | test(\"linux.*amd64\")) | .browser_download_url"
+autoplow_latest_releases_url: "https://api.github.com/repos/saltyorg/autoplow/releases/latest"
 
 ################################
 # Systemd

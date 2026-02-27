@@ -21,15 +21,22 @@
     mode: "0775"
 
 - name: "Get URL for latest Node Exporter release"
-  ansible.builtin.shell: "{{ node_exporter_latest_release_lookup_command }}"
-  args:
-    executable: /bin/bash
-  register: node_exporter_latest_download_url
-  ignore_errors: true
+  ansible.builtin.include_tasks: "{{ resources_tasks_path }}/git/github_api_request.yml"
+  vars:
+    github_api_url: "{{ node_exporter_latest_releases_url }}"
+    github_api_result_var: node_exporter_latest_release_api
+
+- name: "Resolve URL for latest Node Exporter release"
+  ansible.builtin.set_fact:
+    node_exporter_latest_download_url: "{{ ((node_exporter_latest_release_api.content | from_json).assets
+                                           | selectattr('name', 'search', 'linux-amd64.tar.gz')
+                                           | map(attribute='browser_download_url')
+                                           | first) }}"
+  changed_when: false
 
 - name: "Download and unarchive Node Exporter from Github"
   ansible.builtin.unarchive:
-    src: "{{ node_exporter_latest_download_url.stdout }}"
+    src: "{{ node_exporter_latest_download_url }}"
     dest: /tmp/node_exporter
     copy: false
     validate_certs: false
