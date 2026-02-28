@@ -26,3 +26,4 @@ skip_list:
   - schema[tasks]
   - var-naming[no-role-prefix]
   - yaml[line-length]
+  - complexity[tasks]
